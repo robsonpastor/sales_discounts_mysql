@@ -11,6 +11,8 @@ query/scripts to execute the logic.
 ALTER TABLE sales ADD COLUMN discount_value DECIMAL(10,2);
 
 SET SQL_SAFE_UPDATES = 0;
+
+START TRANSACTION;
 /*It updates sales table with discounts data*/
 UPDATE sales 
 SET 
@@ -29,7 +31,10 @@ WHERE
         WHERE
             discounts.sales_order_id = sales.sales_order_id
                 AND discounts.customer_id = sales.customer_id);
+COMMIT;
+
 SET SQL_SAFE_UPDATES = 1;   
+
 
 /*
 After check if everything is ok, you can drop discounts table.
