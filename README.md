@@ -5,7 +5,7 @@ SQL solution for Sales x Discount Problem
 
 *	MySQL 5.7.29 >=
 
-## Regular Case
+## Regular Case Solution
 Connected to a MySQL database run the following scrits:
 
 1. Create sales and discounts tables
@@ -19,10 +19,11 @@ Connected to a MySQL database run the following scrits:
 	
 
 3. Update sales table with discounts information
+
 	[sql/regular_case/0003_update_sales.sql](sql/regular_case/0003_update_sales.sql)
 
 	
-## Edge Case
+## Edge Case Solution
 You can drop sales and dicounts tables and then run the following scripts:
 
 1. Create sales and discounts tables
@@ -36,4 +37,5 @@ You can drop sales and dicounts tables and then run the following scripts:
 	
 
 3. Update sales table with discounts information in batches for huge data volume
+
 	[sql/edge_case/0003_update_sales.sql](sql/edge_case/0001_huge_data_volume.sql)
