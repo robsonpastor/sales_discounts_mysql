@@ -6,61 +6,67 @@ the data quality) and, optionally, propose possible solutions and/or
 scripts to handle such cases. 
 */
 
-/*Scenario 1: table sales primary key is only column sales_order_id.
-			And column customer_id is nullable.
+/*Scenario 1: Sales table and discounts table have a huge number of rows.
+In that case, if you try to update the whole table you could crache the database.
+
+Solutions:
+You can create a script with a loop to update sales in batches.
+Each iteration of the loop could update a batch of an interval of custumer_id 
+or an interval of dates and then commit transaction.
+
+If you want to test this solution, then run the following scripts:
+	sql/regular_case/0001_create_tables.sql
+	sql/regular_case/0002_insert_test_data.sql
+Then run this script below.
 */
-
-CREATE TABLE sales (
-    sales_order_id INTEGER NOT NULL,
-    customer_id INTEGER ,
-    sales_order_item VARCHAR(100) NOT NULL,
-    sales_date DATE NOT NULL,
-    transaction_value DECIMAL(10 , 2 ) NOT NULL,
-    CONSTRAINT pk_sales PRIMARY KEY (sales_order_id)/*,
-    CONSTRAINT fk_sales_customer FOREIGN KEY (customer_id)
-        REFERENCES customers (customer_id)*/
-);
-
-CREATE TABLE discounts (
-    sales_order_id INTEGER NOT NULL,
-    customer_id INTEGER NOT NULL,
-    discount_value DECIMAL(10 , 2 ) NOT NULL,
-    CONSTRAINT pk_discounts PRIMARY KEY (sales_order_id),
-    
-    CONSTRAINT fk_discounts_sales FOREIGN KEY (sales_order_id)
-        REFERENCES sales (sales_order_id)
-     /*,
-    CONSTRAINT fk_discounts_customer FOREIGN KEY (customer_id)
-        REFERENCES customers (customer_id)*/
-);
-
-/*It creates a column to discount values at table sales */
-ALTER TABLE sales ADD COLUMN discount_value DECIMAL(10,2);
-
+DROP PROCEDURE IF EXISTS UpdateSalesInBatches;
 SET SQL_SAFE_UPDATES = 0;
-/*It updates sales table with discounts data*/
-UPDATE sales 
-SET 
-    discount_value = (SELECT 
-            discounts.discount_value
-        FROM
-            discounts
-        WHERE
-            discounts.sales_order_id = sales.sales_order_id
-                AND discounts.customer_id = sales.customer_id)
-WHERE
-    EXISTS( SELECT 
-            1
-        FROM
-            discounts
-        WHERE
-            discounts.sales_order_id = sales.sales_order_id
-                AND discounts.customer_id = sales.customer_id);
-SET SQL_SAFE_UPDATES = 1;   
+DELIMITER $$
 
-/*
-After check if everything is ok, you can drop discounts table.
+CREATE PROCEDURE UpdateSalesInBatches()
+BEGIN
+	DECLARE bDone INTEGER DEFAULT 0;
+	DECLARE customerIdStart INTEGER;
+	DECLARE customerIdEnd INTEGER;
+	/*this cursor returns intervals of 100 custumer_id(eg: [0,99],[100,199],[200,299]... )*/
+	DECLARE curCustomers CURSOR FOR  SELECT MIN(customer_id) INTERVAL_START, MAX(customer_id) INTERVAL_END FROM discounts GROUP BY FLOOR(customer_id / 100) ORDER BY FLOOR(customer_id / 100);
+	DECLARE CONTINUE HANDLER FOR NOT FOUND SET bDone = 1;
 
-Drop discounts table;
+	OPEN curCustomers;
 
-*/
+	
+	REPEAT
+		FETCH curCustomers INTO customerIdStart, customerIdEnd;
+		IF NOT bDone THEN
+			START TRANSACTION;
+			UPDATE sales 
+				SET 
+					discount_value = (SELECT 
+							discounts.discount_value
+						FROM
+							discounts
+						WHERE
+							discounts.sales_order_id = sales.sales_order_id
+								AND discounts.customer_id = sales.customer_id
+								AND discounts.customer_id between customerIdStart and customerIdEnd)
+				WHERE
+					EXISTS( SELECT 
+							1
+						FROM
+							discounts
+						WHERE
+							discounts.sales_order_id = sales.sales_order_id
+								AND discounts.customer_id = sales.customer_id
+								AND discounts.customer_id between customerIdStart and customerIdEnd);
+			COMMIT;
+		END;
+	UNTIL bDone END REPEAT;
+	CLOSE curCustomers;
+END$$
+
+DELIMITER ;
+
+CALL UpdateSalesInBatches();
+SET SQL_SAFE_UPDATES = 1;
+
+DROP PROCEDURE IF EXISTS UpdateSalesInBatches;
